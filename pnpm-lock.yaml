@@ -1,0 +1,48 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      '@prettier/plugin-php':
+        specifier: ^0.22.2
+        version: 0.22.2(prettier@3.3.2)
+      prettier:
+        specifier: ^3.3.2
+        version: 3.3.2
+
+packages:
+
+  '@prettier/plugin-php@0.22.2':
+    resolution: {integrity: sha512-md0+7tNbsP0oy+wIP3KZZc6fzx1k1jtWaMjOy/gM8yU9f2BDYEi+iHOc/UNPihYvPI28zFTbjvlhH4QXQjQwNg==}
+    peerDependencies:
+      prettier: ^3.0.0
+
+  linguist-languages@7.27.0:
+    resolution: {integrity: sha512-Wzx/22c5Jsv2ag+uKy+ITanGA5hzvBZngrNGDXLTC7ZjGM6FLCYGgomauTkxNJeP9of353OM0pWqngYA180xgw==}
+
+  php-parser@3.1.5:
+    resolution: {integrity: sha512-jEY2DcbgCm5aclzBdfW86GM6VEIWcSlhTBSHN1qhJguVePlYe28GhwS0yoeLYXpM2K8y6wzLwrbq814n2PHSoQ==}
+
+  prettier@3.3.2:
+    resolution: {integrity: sha512-rAVeHYMcv8ATV5d508CFdn+8/pHPpXeIid1DdrPwXnaAdH7cqjVbpJaT5eq4yRAFU/lsbwYwSF/n5iNrdJHPQA==}
+    engines: {node: '>=14'}
+    hasBin: true
+
+snapshots:
+
+  '@prettier/plugin-php@0.22.2(prettier@3.3.2)':
+    dependencies:
+      linguist-languages: 7.27.0
+      php-parser: 3.1.5
+      prettier: 3.3.2
+
+  linguist-languages@7.27.0: {}
+
+  php-parser@3.1.5: {}
+
+  prettier@3.3.2: {}

@@ -1,0 +1,22 @@
+arrowParens: always
+bracketSpacing: true
+htmlWhitespaceSensitivity: ignore
+jsxBracketSameLine: false
+jsxSingleQuote: false
+plugins:
+  - '@prettier/plugin-php'
+phpVersion: '8.2'
+printWidth: 80
+proseWrap: always
+quoteProps: as-needed
+semi: true
+singleQuote: true
+tabWidth: 2
+trailingComma: all
+useTabs: false
+braceStyle: 1tbs
+overrides:
+  - files: '**/*.php'
+    options:
+      parser: php
+      singleQuote: false
