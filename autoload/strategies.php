@@ -10,7 +10,45 @@ function wsmp_fetch_response($path, $ext, $result, $request, $server) {
     mkdir($folder, 0755, true);
   }
   // Download the file from the remote and put it in the same place locally
-  file_put_contents($local_path, file_get_contents($url));
+  $context = stream_context_create([
+    "http" => [
+      "timeout" => 30,
+      "ignore_errors" => true,
+    ],
+  ]);
+  $content = file_get_contents($url, false, $context);
+  if ($content === false) {
+    $error = error_get_last();
+    $error_message = $error ? $error["message"] : "Unknown error";
+    error_log("Failed to fetch remote file: $url - Error: $error_message");
+    wp_die(
+      "Failed to fetch remote file: " . $url . " - Error: " . $error_message,
+      "",
+      500,
+    );
+  }
+
+  // Check if we got an HTTP error response
+  if (isset($http_response_header)) {
+    $status_line = $http_response_header[0];
+    if (
+      strpos($status_line, "200") === false &&
+      strpos($status_line, "304") === false
+    ) {
+      error_log(
+        "HTTP error fetching remote file: $url - Response: $status_line",
+      );
+      wp_die(
+        "HTTP error fetching remote file: " .
+          $url .
+          " - Response: " .
+          $status_line,
+        "",
+        500,
+      );
+    }
+  }
+  file_put_contents($local_path, $content);
 
   error_log("Fetched remote file: $url");
 
