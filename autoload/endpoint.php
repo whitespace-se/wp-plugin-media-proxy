@@ -42,9 +42,10 @@ function wsmp_endpoint(WP_REST_Request $req) {
 }
 
 function wsmp_get_remote() {
-  $remote = defined("WSMP_REMOTE_URL")
-    ? constant("WSMP_REMOTE_URL")
-    : get_option("wsmp_remote_url");
+  $remote =
+    defined("WSMP_REMOTE_URL") && constant("WSMP_REMOTE_URL")
+      ? constant("WSMP_REMOTE_URL")
+      : get_option("wsmp_remote_url");
   return $remote ? rtrim($remote, "/") : null;
 }
 
