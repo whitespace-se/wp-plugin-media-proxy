@@ -13,7 +13,6 @@ function wsmp_fetch_response($path, $ext, $result, $request, $server) {
 
   $remote_response = wp_remote_get($url, [
     "timeout" => 30,
-    "stream" => true,
     "filename" => $local_path,
     "ignore_errors" => true,
   ]);
@@ -27,7 +26,10 @@ function wsmp_fetch_response($path, $ext, $result, $request, $server) {
       500,
     );
   }
-  if ($remote_response["response"]["code"] !== 200) {
+  if (
+    $remote_response["response"]["code"] !== 200 ||
+    empty($remote_response["body"])
+  ) {
     error_log(
       "Error fetching remote file: HTTP " .
         $remote_response["response"]["code"],
