@@ -1,7 +1,8 @@
 <?php
 
 function wsmp_fetch_response($path, $ext, $result, $request, $server) {
-  $url = wsmp_get_remote() . $path;
+  $remote_path = wsmp_rewrite_remote_path($path);
+  $url = wsmp_get_remote() . $remote_path;
   // Get the local uploads directory. (Should be /app/uploads)
   $local_path = ltrim($path, "/");
   // Make sure all the folders exist before downloading (mkdir -p)
@@ -50,7 +51,8 @@ function wsmp_fetch_response($path, $ext, $result, $request, $server) {
 }
 
 function wsmp_pipe_response($path, $ext, $result, $request, $server) {
-  $url = wsmp_get_remote() . $path;
+  $remote_path = wsmp_rewrite_remote_path($path);
+  $url = wsmp_get_remote() . $remote_path;
   header("Content-Type: " . mime_content_type($url));
   header("Content-Length: " . strlen($url));
   readfile($url);
@@ -59,7 +61,8 @@ function wsmp_pipe_response($path, $ext, $result, $request, $server) {
 
 function wsmp_redirect_response($path, $ext, $result, $request, $server) {
   status_header(302);
-  $url = wsmp_get_remote() . $path;
+  $remote_path = wsmp_rewrite_remote_path($path);
+  $url = wsmp_get_remote() . $remote_path;
   header("Location: " . $url);
   exit();
 }

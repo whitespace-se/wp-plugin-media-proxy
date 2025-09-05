@@ -49,6 +49,18 @@ function wsmp_get_remote() {
   return $remote ? rtrim($remote, "/") : null;
 }
 
+function wsmp_rewrite_remote_path($path) {
+  $remote_uploads_path =
+    defined("WSMP_REMOTE_UPLOADS_PATH") && constant("WSMP_REMOTE_UPLOADS_PATH")
+      ? constant("WSMP_REMOTE_UPLOADS_PATH")
+      : get_option("wsmp_remote_uploads_path");
+  if (empty($remote_uploads_path)) {
+    $remote_uploads_path = "/app/uploads";
+  }
+  $remote_uploads_path = "/" . trim($remote_uploads_path, "/") . "/";
+  return preg_replace("#/app/uploads/#", $remote_uploads_path, $path);
+}
+
 add_filter(
   "rest_pre_serve_request",
   function ($served, $result, $request, $server) {

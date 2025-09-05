@@ -25,6 +25,12 @@ function wsmp_settings_init() {
     "default" => "",
   ]);
 
+  register_setting("wsmp_settings", "wsmp_remote_uploads_path", [
+    "type" => "string",
+    "sanitize_callback" => "sanitize_text_field",
+    "default" => "/app/uploads",
+  ]);
+
   add_settings_section(
     "wsmp_settings_section",
     __("Media Proxy Configuration", "whitespace-media-proxy"),
@@ -36,6 +42,14 @@ function wsmp_settings_init() {
     "wsmp_remote_url",
     __("Remote URL", "whitespace-media-proxy"),
     "wsmp_remote_url_render",
+    "wsmp_settings",
+    "wsmp_settings_section",
+  );
+
+  add_settings_field(
+    "wsmp_remote_uploads_path",
+    __("Remote Uploads Path", "whitespace-media-proxy"),
+    "wsmp_remote_uploads_path_render",
     "wsmp_settings",
     "wsmp_settings_section",
   );
@@ -80,15 +94,6 @@ function wsmp_settings_section_callback() {
       "whitespace-media-proxy",
     ) .
     "</p>";
-
-  if (defined("WSMP_REMOTE_URL") && constant("WSMP_REMOTE_URL")) {
-    echo "<p><strong>" .
-      __(
-        "Note: The remote URL is currently set via the WSMP_REMOTE_URL constant in your configuration.",
-        "whitespace-media-proxy",
-      ) .
-      "</strong></p>";
-  }
 }
 
 function wsmp_remote_url_render() {
@@ -120,6 +125,28 @@ function wsmp_remote_url_render() {
     </p>
     <?php endif; ?>
     <?php
+}
+
+/**
+ * Renders a dropdown with the options "/app/uploads", "/wp-content/uploads", "/wp/wp-content/uploads"
+ */
+function wsmp_remote_uploads_path_render() {
+  $is_constant_defined =
+    defined("WSMP_REMOTE_UPLOADS_PATH") && constant("WSMP_REMOTE_UPLOADS_PATH");
+  $value = $is_constant_defined
+    ? constant("WSMP_REMOTE_UPLOADS_PATH")
+    : get_option("wsmp_remote_uploads_path", "/app/uploads");
+  $paths = ["/app/uploads", "/wp-content/uploads", "/wp/wp-content/uploads"];
+  ?>
+  <select name="wsmp_remote_uploads_path">
+    <?php foreach ($paths as $path): ?>
+      <option value="<?php echo esc_attr($path); ?>" <?php selected(
+  $value,
+  $path,
+); ?>><?php echo esc_html($path); ?></option>
+    <?php endforeach; ?>
+  </select>
+  <?php
 }
 
 function wsmp_settings_page() {
