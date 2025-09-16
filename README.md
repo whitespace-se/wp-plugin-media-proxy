@@ -30,6 +30,20 @@ A WordPress plugin to proxy media files through the production site on demand.
    correspond to the full path to the file, including `/app/uploads`, e.g.,
    `/app/uploads/my-image.jpg`.
 
+### Recommended config for Nginx
+
+```
+# App uploads location with media proxy fallback
+location ~ ^/app/uploads/ {
+  try_files $uri @media_proxy;
+}
+
+# Media proxy fallback location
+location @media_proxy {
+  rewrite ^(.*)$ /wp-json/wsmp/v1/media-file?path=$1 redirect;
+}
+```
+
 ## Strategies
 
 There are three proxy strategies:
