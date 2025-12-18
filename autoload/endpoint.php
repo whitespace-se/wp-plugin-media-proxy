@@ -20,6 +20,7 @@ function wsmp_get_extension_strategies() {
     "png" => "fetch",
     "jpg" => "fetch",
     "jpeg" => "fetch",
+    "svg" => "fetch",
     "pdf" => "redirect",
     "docx" => "redirect",
     "mp4" => "redirect",
