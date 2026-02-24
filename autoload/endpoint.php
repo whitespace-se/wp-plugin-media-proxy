@@ -72,9 +72,12 @@ add_filter(
     ) {
       $path = $request->get_param("path");
 
-      if (strpos($path, "/app/uploads/") !== 0) {
+      if (
+        strpos($path, "/app/uploads/") !== 0 &&
+        strpos($path, "/wp-content/uploads/") !== 0
+      ) {
         wp_die(
-          "This endpoint only serves files from the /app/uploads/ directory",
+          "This endpoint only serves files from the /app/uploads/ or /wp-content/uploads/ directories",
           "",
           400,
         );
