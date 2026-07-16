@@ -33,16 +33,25 @@ function wsmp_get_extension_strategies() {
 
 function wsmp_get_strategy_for_extension($ext) {
   $strategies = wsmp_get_extension_strategies();
-  return $strategies[$ext] ?? wsmp_get_default_strategy();
+  return $strategies[strtolower($ext)] ?? wsmp_get_default_strategy();
 }
 
 function wsmp_endpoint(WP_REST_Request $req) {
-  if (!wsmp_get_remote()) {
+  $remote = wsmp_get_remote();
+  if (!$remote) {
     return new WP_REST_Response(
       "Remote URL for Whitespace Media Proxy is not defined",
       400,
     );
   }
+
+  if (wsmp_urls_share_origin($remote, home_url())) {
+    return new WP_REST_Response(
+      "Remote URL for Whitespace Media Proxy must not use the current site origin",
+      400,
+    );
+  }
+
   return new WP_REST_Response("", 200);
 }
 
@@ -51,19 +60,12 @@ function wsmp_get_remote() {
     defined("WSMP_REMOTE_URL") && constant("WSMP_REMOTE_URL")
       ? constant("WSMP_REMOTE_URL")
       : get_option("wsmp_remote_url");
-  return $remote ? rtrim($remote, "/") : null;
-}
-
-function wsmp_rewrite_remote_path($path) {
-  $remote_uploads_path =
-    defined("WSMP_REMOTE_UPLOADS_PATH") && constant("WSMP_REMOTE_UPLOADS_PATH")
-      ? constant("WSMP_REMOTE_UPLOADS_PATH")
-      : get_option("wsmp_remote_uploads_path");
-  if (empty($remote_uploads_path)) {
-    $remote_uploads_path = "/app/uploads";
+  if (!$remote) {
+    return null;
   }
-  $remote_uploads_path = "/" . trim($remote_uploads_path, "/") . "/";
-  return preg_replace("#/app/uploads/#", $remote_uploads_path, $path);
+
+  $remote = rtrim($remote, "/");
+  return wp_http_validate_url($remote) ? $remote : null;
 }
 
 add_filter(
@@ -76,18 +78,15 @@ add_filter(
     ) {
       $path = $request->get_param("path");
 
-      if (
-        strpos($path, "/app/uploads/") !== 0 &&
-        strpos($path, "/wp-content/uploads/") !== 0
-      ) {
+      if (wsmp_parse_upload_path($path) === null) {
         wp_die(
-          "This endpoint only serves files from the /app/uploads/ or /wp-content/uploads/ directories",
+          "This endpoint only serves valid files below /app/uploads/ or /wp-content/uploads/",
           "",
           400,
         );
       }
 
-      $ext = pathinfo($path, PATHINFO_EXTENSION);
+      $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
       $strategy = wsmp_get_strategy_for_extension($ext);
 

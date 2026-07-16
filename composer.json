@@ -4,7 +4,7 @@
   "type": "wordpress-plugin",
   "minimum-stability": "dev",
   "prefer-stable": true,
-  "license": "AGPL-3.0",
+  "license": "AGPL-3.0-only",
   "config": {
     "allow-plugins": {
       "php-http/discovery": true,
@@ -26,6 +26,9 @@
     "psr-4": {
       "WhitespaceMediaProxy\\": "psr-4/"
     }
+  },
+  "scripts": {
+    "test": "@php tests/run.php"
   },
   "repositories": [
     {

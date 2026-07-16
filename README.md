@@ -21,11 +21,14 @@ A WordPress plugin to proxy media files through the production site on demand.
    ```bash
    composer require whitespace-se/wp-plugin-media-proxy:dev-main
    ```
-3. Define the constant `WSMP_REMOTE_URL` in your `wp-config.php` file:
+3. Define the constant `WSMP_REMOTE_URL` in your environment-specific WordPress
+   configuration:
    ```php
    define('WSMP_REMOTE_URL', 'https://your-remote-url.com');
    ```
-4. Configure your HTTP server to redirect missing files in `/app/uploads` to
+   The value must be a different origin from the current site to prevent
+   redirect loops.
+4. Configure your HTTP server to rewrite missing files in `/app/uploads` to
    `/wp-json/wsmp/v1/media-file?path=<file_path>`. The `<file_path>` must
    correspond to the full path to the file, including `/app/uploads`, e.g.,
    `/app/uploads/my-image.jpg`.
@@ -43,6 +46,23 @@ location @media_proxy {
   rewrite ^(.*)$ /wp-json/wsmp/v1/media-file?path=$1 redirect;
 }
 ```
+
+### Recommended config for OpenLiteSpeed
+
+The rule belongs in the virtual host rewrite block before the WordPress front
+controller. The `!-f` condition lets OpenLiteSpeed serve existing files
+directly, while the `B` flag safely escapes the captured path when it becomes a
+query parameter.
+
+```apacheconf
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^/?wp-content/uploads/(.+)$ /wp-json/wsmp/v1/media-file?path=/wp-content/uploads/$1 [B,L]
+```
+
+The REST endpoint only accepts paths below `/app/uploads/` or
+`/wp-content/uploads/`. Fetch responses resolve the destination through
+WordPress' configured uploads directory, so installations that symlink uploads
+to shared runtime storage keep that storage contract.
 
 ## Strategies
 
