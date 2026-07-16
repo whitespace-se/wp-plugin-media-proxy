@@ -49,15 +49,30 @@ location @media_proxy {
 
 ### Recommended config for OpenLiteSpeed
 
-The rule belongs in the virtual host rewrite block before the WordPress front
-controller. The `!-f` condition lets OpenLiteSpeed serve existing files
-directly, while the `B` flag safely escapes the captured path when it becomes a
-query parameter.
+Put the rule in a dedicated static `/wp-content/uploads/` context. The `!-f`
+condition lets existing files stay on the static fast path, while the endpoint
+validates a captured path before using it for a remote or local file.
 
 ```apacheconf
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteRule ^/?wp-content/uploads/(.+)$ /wp-json/wsmp/v1/media-file?path=/wp-content/uploads/$1 [B,L]
+context /wp-content/uploads/ {
+  allowBrowse 1
+  location $DOC_ROOT/wp-content/uploads/
+
+  rewrite {
+    enable 1
+    inherit 0
+    rules <<<END_rules
+RewriteCond /srv/www/<site-id>/current%{REQUEST_URI} !-f
+RewriteCond %{REQUEST_URI} ^/wp-content/uploads/(.+)$
+RewriteRule ^ /index.php?rest_route=/wsmp/v1/media-file&path=/wp-content/uploads/%1 [R=307,L]
+END_rules
+  }
+}
 ```
+
+The local `307` is intentional: it preserves the `GET` request while moving a
+missing static file into WordPress' REST routing. Existing files never take
+that redirect and remain on OpenLiteSpeed's static path.
 
 The REST endpoint only accepts paths below `/app/uploads/` or
 `/wp-content/uploads/`. Fetch responses resolve the destination through
