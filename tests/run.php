@@ -38,8 +38,8 @@ function get_option($name) {
   return $name === "wsmp_remote_url" ? "https://www.hoor.se" : null;
 }
 
-function home_url() {
-  return "https://hoor1.dev.m7o.w8e.se";
+function home_url($path = "") {
+  return "https://hoor1.dev.m7o.w8e.se" . $path;
 }
 
 function is_wp_error($value) {
@@ -227,6 +227,16 @@ wsmp_assert_same(
   "https://www.hoor.se/app/uploads/2026/07/fetched-image.jpg",
   $wsmp_test_remote_url,
   "The fetch request stays below the configured remote uploads path",
+);
+wsmp_assert_same(
+  "https://hoor1.dev.m7o.w8e.se/wp-content/uploads/2026/07/fetched-image.jpg",
+  wsmp_get_local_media_url("/wp-content/uploads/2026/07/fetched-image.jpg"),
+  "A fetched file is redirected to its normal local static URL",
+);
+wsmp_assert_same(
+  null,
+  wsmp_get_local_media_url("/wp-content/plugins/private.php"),
+  "An invalid fetch path cannot produce a local redirect URL",
 );
 
 $wsmp_test_response = ["response" => ["code" => 404], "body" => ""];

@@ -74,6 +74,11 @@ function wsmp_fetch_remote_file($path) {
   return ["local_path" => $local_path, "remote_url" => $url];
 }
 
+function wsmp_get_local_media_url($path) {
+  $upload_path = wsmp_parse_upload_path($path);
+  return $upload_path === null ? null : home_url($upload_path["path"]);
+}
+
 function wsmp_fetch_response($path, $ext, $result, $request, $server) {
   $fetched_file = wsmp_fetch_remote_file($path);
   if (is_wp_error($fetched_file)) {
@@ -88,13 +93,18 @@ function wsmp_fetch_response($path, $ext, $result, $request, $server) {
     );
   }
 
-  $local_path = $fetched_file["local_path"];
   error_log("Fetched remote file: " . $fetched_file["remote_url"]);
 
-  // Serve the file and exit
-  header("Content-Type: " . mime_content_type($local_path));
-  header("Content-Length: " . filesize($local_path));
-  readfile($local_path);
+  $local_url = wsmp_get_local_media_url($path);
+  if ($local_url === null) {
+    wp_die("Invalid uploads path", "", 400);
+  }
+
+  // The file is now atomically available on the normal static uploads path.
+  // Redirecting there avoids buffering large PHP response bodies in the web
+  // server and makes this request use the same cache and range behavior as all
+  // subsequent requests.
+  wp_safe_redirect($local_url, 302, "Whitespace Media Proxy");
   exit();
 }
 
