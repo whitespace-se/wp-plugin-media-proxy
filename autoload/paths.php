@@ -76,9 +76,28 @@ function wsmp_get_local_upload_path($path) {
     return null;
   }
 
+  $relative_path = $upload_path["relative_path"];
+  // Multisite base directories already include `/sites/<blog-id>`. Resolve
+  // relative to the site's public uploads URL to avoid duplicating that suffix.
+  $base_url_path = !empty($upload_dir["baseurl"])
+    ? parse_url($upload_dir["baseurl"], PHP_URL_PATH)
+    : null;
+  if (
+    is_string($base_url_path) &&
+    str_starts_with(
+      $upload_path["path"],
+      rtrim($base_url_path, "/") . "/",
+    )
+  ) {
+    $relative_path = substr(
+      $upload_path["path"],
+      strlen(rtrim($base_url_path, "/")) + 1,
+    );
+  }
+
   return rtrim($upload_dir["basedir"], "/\\") .
     "/" .
-    $upload_path["relative_path"];
+    $relative_path;
 }
 
 function wsmp_rewrite_remote_path($path) {

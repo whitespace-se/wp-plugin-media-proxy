@@ -19,6 +19,7 @@ class WP_Error {
 }
 
 $wsmp_test_upload_dir = "/srv/www/example/shared/uploads";
+$wsmp_test_upload_url = "https://example.test/wp-content/uploads";
 $wsmp_test_response = ["response" => ["code" => 200], "body" => "asset"];
 $wsmp_test_remote_url = null;
 $wsmp_test_remote_uploads_path = "/app/uploads";
@@ -50,8 +51,12 @@ function wp_http_validate_url($url) {
 }
 
 function wp_get_upload_dir() {
-  global $wsmp_test_upload_dir;
-  return ["basedir" => $wsmp_test_upload_dir, "error" => false];
+  global $wsmp_test_upload_dir, $wsmp_test_upload_url;
+  return [
+    "basedir" => $wsmp_test_upload_dir,
+    "baseurl" => $wsmp_test_upload_url,
+    "error" => false,
+  ];
 }
 
 function wp_mkdir_p($path) {
@@ -110,6 +115,16 @@ wsmp_assert_same(
   wsmp_get_local_upload_path("/wp-content/uploads/sites/2/image.jpg"),
   "The local file is resolved below WordPress' uploads base directory",
 );
+$wsmp_test_upload_dir = "/srv/www/example/shared/uploads/sites/2";
+$wsmp_test_upload_url =
+  "https://site-2.example.test/wp-content/uploads/sites/2";
+wsmp_assert_same(
+  "/srv/www/example/shared/uploads/sites/2/image.jpg",
+  wsmp_get_local_upload_path("/wp-content/uploads/sites/2/image.jpg"),
+  "A multisite uploads suffix is not duplicated below the site base directory",
+);
+$wsmp_test_upload_dir = "/srv/www/example/shared/uploads";
+$wsmp_test_upload_url = "https://example.test/wp-content/uploads";
 $remote_path_cases = [
   [
     "/app/uploads",
