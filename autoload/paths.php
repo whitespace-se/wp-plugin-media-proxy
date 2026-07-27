@@ -96,11 +96,7 @@ function wsmp_rewrite_remote_path($path) {
   }
 
   $remote_uploads_path = "/" . trim($remote_uploads_path, "/") . "/";
-  if (str_starts_with($upload_path["path"], "/app/uploads/")) {
-    return $remote_uploads_path . $upload_path["relative_path"];
-  }
-
-  return $upload_path["path"];
+  return $remote_uploads_path . $upload_path["relative_path"];
 }
 
 function wsmp_urls_share_origin($first_url, $second_url) {

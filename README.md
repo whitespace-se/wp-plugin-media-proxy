@@ -25,13 +25,15 @@ A WordPress plugin to proxy media files through the production site on demand.
    configuration:
    ```php
    define('WSMP_REMOTE_URL', 'https://your-remote-url.com');
+   define('WSMP_REMOTE_UPLOADS_PATH', '/app/uploads');
    ```
    The value must be a different origin from the current site to prevent
-   redirect loops.
-4. Configure your HTTP server to rewrite missing files in `/app/uploads` to
-   `/wp-json/wsmp/v1/media-file?path=<file_path>`. The `<file_path>` must
-   correspond to the full path to the file, including `/app/uploads`, e.g.,
-   `/app/uploads/my-image.jpg`.
+   redirect loops. `WSMP_REMOTE_UPLOADS_PATH` is the public uploads path at the
+   remote origin and defaults to `/app/uploads`.
+4. Configure your HTTP server or local Valet driver to rewrite missing uploads
+   to `/wp-json/wsmp/v1/media-file?path=<file_path>`. The `<file_path>` must
+   preserve the local request path, including its uploads prefix. The plugin
+   combines the validated relative file path with `WSMP_REMOTE_UPLOADS_PATH`.
 
 ### Recommended config for Nginx
 
@@ -71,8 +73,8 @@ END_rules
 ```
 
 The local `307` is intentional: it preserves the `GET` request while moving a
-missing static file into WordPress' REST routing. Existing files never take
-that redirect and remain on OpenLiteSpeed's static path.
+missing static file into WordPress' REST routing. Existing files never take that
+redirect and remain on OpenLiteSpeed's static path.
 
 The REST endpoint only accepts paths below `/app/uploads/` or
 `/wp-content/uploads/`. Fetch responses resolve the destination through

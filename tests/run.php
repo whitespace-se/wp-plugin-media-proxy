@@ -21,6 +21,7 @@ class WP_Error {
 $wsmp_test_upload_dir = "/srv/www/example/shared/uploads";
 $wsmp_test_response = ["response" => ["code" => 200], "body" => "asset"];
 $wsmp_test_remote_url = null;
+$wsmp_test_remote_uploads_path = "/app/uploads";
 
 function add_action() {
 }
@@ -30,7 +31,8 @@ function add_filter() {
 
 function get_option($name) {
   if ($name === "wsmp_remote_uploads_path") {
-    return "/app/uploads";
+    global $wsmp_test_remote_uploads_path;
+    return $wsmp_test_remote_uploads_path;
   }
   return $name === "wsmp_remote_url" ? "https://www.hoor.se" : null;
 }
@@ -108,16 +110,37 @@ wsmp_assert_same(
   wsmp_get_local_upload_path("/wp-content/uploads/sites/2/image.jpg"),
   "The local file is resolved below WordPress' uploads base directory",
 );
-wsmp_assert_same(
-  "/app/uploads/legacy/image.jpg",
-  wsmp_rewrite_remote_path("/app/uploads/legacy/image.jpg"),
-  "The legacy uploads path uses the configured remote uploads prefix",
-);
-wsmp_assert_same(
-  "/wp-content/uploads/2026/07/image.jpg",
-  wsmp_rewrite_remote_path("/wp-content/uploads/2026/07/image.jpg"),
-  "A Municipio uploads path is preserved for the remote origin",
-);
+$remote_path_cases = [
+  [
+    "/app/uploads",
+    "/app/uploads/legacy/image.jpg",
+    "/app/uploads/legacy/image.jpg",
+  ],
+  [
+    "/app/uploads",
+    "/wp-content/uploads/legacy/image.jpg",
+    "/app/uploads/legacy/image.jpg",
+  ],
+  [
+    "/wp-content/uploads",
+    "/app/uploads/legacy/image.jpg",
+    "/wp-content/uploads/legacy/image.jpg",
+  ],
+  [
+    "/wp-content/uploads",
+    "/wp-content/uploads/legacy/image.jpg",
+    "/wp-content/uploads/legacy/image.jpg",
+  ],
+];
+foreach ($remote_path_cases as [$remote_root, $request_path, $expected_path]) {
+  $wsmp_test_remote_uploads_path = $remote_root;
+  wsmp_assert_same(
+    $expected_path,
+    wsmp_rewrite_remote_path($request_path),
+    "The local uploads prefix is independent of the configured remote root",
+  );
+}
+$wsmp_test_remote_uploads_path = "/app/uploads";
 
 foreach (
   [
@@ -186,7 +209,7 @@ wsmp_assert_same(
   "Fetched media directories preserve the shared uploads group permissions",
 );
 wsmp_assert_same(
-  "https://www.hoor.se/wp-content/uploads/2026/07/fetched-image.jpg",
+  "https://www.hoor.se/app/uploads/2026/07/fetched-image.jpg",
   $wsmp_test_remote_url,
   "The fetch request stays below the configured remote uploads path",
 );
