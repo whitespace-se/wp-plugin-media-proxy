@@ -18,11 +18,34 @@ class WP_Error {
   }
 }
 
+class WP_REST_Response {
+  private $data;
+  private $status;
+
+  public function __construct($data, $status) {
+    $this->data = $data;
+    $this->status = $status;
+  }
+
+  public function get_data() {
+    return $this->data;
+  }
+
+  public function get_status() {
+    return $this->status;
+  }
+}
+
+class WP_REST_Request {
+}
+
 $wsmp_test_upload_dir = "/srv/www/example/shared/uploads";
 $wsmp_test_upload_url = "https://example.test/wp-content/uploads";
 $wsmp_test_response = ["response" => ["code" => 200], "body" => "asset"];
 $wsmp_test_remote_url = null;
+$wsmp_test_remote_origin = "https://www.hoor.se";
 $wsmp_test_remote_uploads_path = "/app/uploads";
+$wsmp_test_redirect = null;
 
 function add_action() {
 }
@@ -35,7 +58,11 @@ function get_option($name) {
     global $wsmp_test_remote_uploads_path;
     return $wsmp_test_remote_uploads_path;
   }
-  return $name === "wsmp_remote_url" ? "https://www.hoor.se" : null;
+  if ($name === "wsmp_remote_url") {
+    global $wsmp_test_remote_origin;
+    return $wsmp_test_remote_origin;
+  }
+  return null;
 }
 
 function home_url($path = "") {
@@ -76,6 +103,15 @@ function wp_safe_remote_get($url) {
   return $wsmp_test_response;
 }
 
+function wp_safe_redirect($location, $status, $by) {
+  global $wsmp_test_redirect;
+  $wsmp_test_redirect = compact("location", "status", "by");
+  if (($GLOBALS["argv"][1] ?? null) === "--fetch-redirect-child") {
+    fwrite(STDOUT, json_encode($wsmp_test_redirect) . "\n");
+  }
+  return true;
+}
+
 function wp_remote_retrieve_response_code($response) {
   return $response["response"]["code"];
 }
@@ -87,6 +123,21 @@ function wp_remote_retrieve_body($response) {
 require_once dirname(__DIR__) . "/autoload/paths.php";
 require_once dirname(__DIR__) . "/autoload/endpoint.php";
 require_once dirname(__DIR__) . "/autoload/strategies.php";
+
+if (($argv[1] ?? null) === "--fetch-redirect-child") {
+  $wsmp_test_upload_dir =
+    sys_get_temp_dir() . "/wsmp-redirect-test-" . bin2hex(random_bytes(6));
+  register_shutdown_function(function () use (&$wsmp_test_upload_dir) {
+    wsmp_remove_test_directory($wsmp_test_upload_dir);
+  });
+  wsmp_fetch_response(
+    "/wp-content/uploads/2026/07/redirected-image.jpg",
+    "jpg",
+    null,
+    null,
+    null,
+  );
+}
 
 $failures = [];
 
@@ -100,6 +151,21 @@ function wsmp_assert_same($expected, $actual, $message) {
       "\n  actual:   " .
       var_export($actual, true);
   }
+}
+
+function wsmp_remove_test_directory($directory) {
+  if (!is_dir($directory)) {
+    return;
+  }
+
+  $cleanup = new RecursiveIteratorIterator(
+    new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+    RecursiveIteratorIterator::CHILD_FIRST,
+  );
+  foreach ($cleanup as $path) {
+    $path->isDir() ? rmdir($path->getPathname()) : unlink($path->getPathname());
+  }
+  rmdir($directory);
 }
 
 wsmp_assert_same(
@@ -187,6 +253,14 @@ wsmp_assert_same(
   wsmp_urls_share_origin("https://www.hoor.se", "https://hoor1.dev.m7o.w8e.se"),
   "Different hosts do not trigger the redirect-loop guard",
 );
+$wsmp_test_remote_origin = "https://hoor1.dev.m7o.w8e.se";
+$same_origin_response = wsmp_endpoint(new WP_REST_Request());
+wsmp_assert_same(
+  400,
+  $same_origin_response->get_status(),
+  "The endpoint rejects a remote URL on the current site's origin",
+);
+$wsmp_test_remote_origin = "https://www.hoor.se";
 wsmp_assert_same(
   "fetch",
   wsmp_get_strategy_for_extension("WOFF2"),
@@ -200,6 +274,55 @@ wsmp_assert_same(
 
 $wsmp_test_upload_dir =
   sys_get_temp_dir() . "/wsmp-tests-" . bin2hex(random_bytes(6));
+$fetch_path_cases = [
+  [
+    "/app/uploads",
+    "/app/uploads/2026/07/app-to-app.jpg",
+    "https://www.hoor.se/app/uploads/2026/07/app-to-app.jpg",
+  ],
+  [
+    "/wp-content/uploads",
+    "/app/uploads/2026/07/app-to-wp-content.jpg",
+    "https://www.hoor.se/wp-content/uploads/2026/07/app-to-wp-content.jpg",
+  ],
+  [
+    "/app/uploads",
+    "/wp-content/uploads/2026/07/wp-content-to-app.jpg",
+    "https://www.hoor.se/app/uploads/2026/07/wp-content-to-app.jpg",
+  ],
+  [
+    "/wp-content/uploads",
+    "/wp-content/uploads/2026/07/wp-content-to-wp-content.jpg",
+    "https://www.hoor.se/wp-content/uploads/2026/07/wp-content-to-wp-content.jpg",
+  ],
+];
+foreach (
+  $fetch_path_cases
+  as [$remote_root, $request_path, $expected_remote_url]
+) {
+  $wsmp_test_remote_uploads_path = $remote_root;
+  $fetched_path_case = wsmp_fetch_remote_file($request_path);
+  wsmp_assert_same(
+    false,
+    is_wp_error($fetched_path_case),
+    "Both supported local prefixes can fetch from both remote roots",
+  );
+  wsmp_assert_same(
+    $expected_remote_url,
+    $fetched_path_case["remote_url"] ?? null,
+    "The fetch uses the configured remote uploads root",
+  );
+  wsmp_assert_same(
+    "asset",
+    file_get_contents(
+      $wsmp_test_upload_dir .
+        "/" .
+        wsmp_parse_upload_path($request_path)["relative_path"],
+    ),
+    "The path matrix publishes each fetched file below local uploads",
+  );
+}
+$wsmp_test_remote_uploads_path = "/app/uploads";
 $fetched_file = wsmp_fetch_remote_file(
   "/wp-content/uploads/2026/07/fetched-image.jpg",
 );
@@ -212,6 +335,11 @@ wsmp_assert_same(
   "asset",
   file_get_contents($wsmp_test_upload_dir . "/2026/07/fetched-image.jpg"),
   "The fetched response body is published as the requested file",
+);
+wsmp_assert_same(
+  [],
+  glob($wsmp_test_upload_dir . "/2026/07/.wsmp-*"),
+  "Atomic publication leaves no temporary media file behind",
 );
 wsmp_assert_same(
   0644,
@@ -239,6 +367,32 @@ wsmp_assert_same(
   "An invalid fetch path cannot produce a local redirect URL",
 );
 
+$redirect_output = [];
+$redirect_exit_code = null;
+exec(
+  escapeshellarg(PHP_BINARY) .
+    " " .
+    escapeshellarg(__FILE__) .
+    " --fetch-redirect-child",
+  $redirect_output,
+  $redirect_exit_code,
+);
+wsmp_assert_same(
+  0,
+  $redirect_exit_code,
+  "A successful fetch response exits cleanly after redirecting",
+);
+wsmp_assert_same(
+  [
+    "location" =>
+      "https://hoor1.dev.m7o.w8e.se/wp-content/uploads/2026/07/redirected-image.jpg",
+    "status" => 302,
+    "by" => "Whitespace Media Proxy",
+  ],
+  json_decode(end($redirect_output), true),
+  "A successful fetch sends a 302 redirect to the now-local static file",
+);
+
 $wsmp_test_response = ["response" => ["code" => 404], "body" => ""];
 $missing_file = wsmp_fetch_remote_file(
   "/wp-content/uploads/2026/07/missing-image.jpg",
@@ -259,17 +413,22 @@ wsmp_assert_same(
   "A missing remote file is not created locally",
 );
 
-$cleanup = new RecursiveIteratorIterator(
-  new RecursiveDirectoryIterator(
-    $wsmp_test_upload_dir,
-    FilesystemIterator::SKIP_DOTS,
-  ),
-  RecursiveIteratorIterator::CHILD_FIRST,
+$wsmp_test_response = new WP_Error("http_request_failed", "Timed out");
+$failed_request = wsmp_fetch_remote_file(
+  "/wp-content/uploads/2026/07/failed-request.jpg",
 );
-foreach ($cleanup as $path) {
-  $path->isDir() ? rmdir($path->getPathname()) : unlink($path->getPathname());
-}
-rmdir($wsmp_test_upload_dir);
+wsmp_assert_same(
+  ["status" => 502],
+  $failed_request->get_error_data(),
+  "A remote transport failure produces a controlled gateway error",
+);
+wsmp_assert_same(
+  false,
+  file_exists($wsmp_test_upload_dir . "/2026/07/failed-request.jpg"),
+  "A failed remote request is never published locally",
+);
+
+wsmp_remove_test_directory($wsmp_test_upload_dir);
 
 if ($failures !== []) {
   fwrite(STDERR, implode("\n\n", $failures) . "\n");

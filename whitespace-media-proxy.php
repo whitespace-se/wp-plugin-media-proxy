@@ -3,7 +3,7 @@
 /**
  * Plugin Name: Whitespace Media Proxy
  * Description: Proxies media files through the production site on demand.
- * Version: 0.0.0
+ * Version: 1.0.0
  * Author: Whitespace Dev
  * Text Domain: whitespace-media-proxy
  * Domain Path: /languages/

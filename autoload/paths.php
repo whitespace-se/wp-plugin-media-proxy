@@ -84,10 +84,7 @@ function wsmp_get_local_upload_path($path) {
     : null;
   if (
     is_string($base_url_path) &&
-    str_starts_with(
-      $upload_path["path"],
-      rtrim($base_url_path, "/") . "/",
-    )
+    str_starts_with($upload_path["path"], rtrim($base_url_path, "/") . "/")
   ) {
     $relative_path = substr(
       $upload_path["path"],
@@ -95,9 +92,7 @@ function wsmp_get_local_upload_path($path) {
     );
   }
 
-  return rtrim($upload_dir["basedir"], "/\\") .
-    "/" .
-    $relative_path;
+  return rtrim($upload_dir["basedir"], "/\\") . "/" . $relative_path;
 }
 
 function wsmp_rewrite_remote_path($path) {

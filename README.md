@@ -17,19 +17,20 @@ A WordPress plugin to proxy media files through the production site on demand.
      ]
    }
    ```
-2. Install the package and its dependencies:
+2. Install the stable package:
    ```bash
-   composer require whitespace-se/wp-plugin-media-proxy:dev-main
+   composer require whitespace-se/wp-plugin-media-proxy:^1.0
    ```
-3. Define the constant `WSMP_REMOTE_URL` in your environment-specific WordPress
-   configuration:
+3. For a single-origin installation, define `WSMP_REMOTE_URL` in the
+   environment-specific WordPress configuration:
    ```php
    define('WSMP_REMOTE_URL', 'https://your-remote-url.com');
    define('WSMP_REMOTE_UPLOADS_PATH', '/app/uploads');
    ```
    The value must be a different origin from the current site to prevent
    redirect loops. `WSMP_REMOTE_UPLOADS_PATH` is the public uploads path at the
-   remote origin and defaults to `/app/uploads`.
+   remote origin and defaults to `/app/uploads`. These constants apply to the
+   whole WordPress process.
 4. Configure your HTTP server or local Valet driver to rewrite missing uploads
    to `/wp-json/wsmp/v1/media-file?path=<file_path>`. The `<file_path>` must
    preserve the local request path, including its uploads prefix. The plugin
@@ -80,6 +81,28 @@ The REST endpoint only accepts paths below `/app/uploads/` or
 `/wp-content/uploads/`. Fetch responses resolve the destination through
 WordPress' configured uploads directory, so installations that symlink uploads
 to shared runtime storage keep that storage contract.
+
+The first request for an image or font normally follows `307 → 302 → 200`:
+OpenLiteSpeed redirects the missing static request into WordPress, the plugin
+atomically publishes the fetched file and redirects to its local upload URL, and
+the web server returns the new static file. Later requests use the static path
+directly and return `200` without running the plugin.
+
+In multisite networks where blogs use different source sites, leave the
+`WSMP_REMOTE_URL` and `WSMP_REMOTE_UPLOADS_PATH` constants undefined and store
+the `wsmp_remote_url` and `wsmp_remote_uploads_path` options on each blog
+instead. WordPress' per-blog uploads configuration determines the local
+destination, including `sites/<blog-id>` where applicable.
+
+Media Proxy is a migration-readiness and fallback tool. It does not replace a
+controlled transfer of the complete media library before a stage or production
+cutover.
+
+## Compatibility
+
+Version `1.0.0` is verified in Municipio Cloud reference environments using PHP
+8.3 and WordPress 6.x. The package requires PHP 8.0 or newer. No broader
+WordPress compatibility range is claimed without corresponding test evidence.
 
 ## Strategies
 

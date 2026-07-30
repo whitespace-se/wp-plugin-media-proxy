@@ -2,48 +2,14 @@
   "name": "whitespace-se/wp-plugin-media-proxy",
   "description": "WordPress plugin to proxy media files through the production site on demand",
   "type": "wordpress-plugin",
-  "minimum-stability": "dev",
-  "prefer-stable": true,
   "license": "AGPL-3.0-only",
-  "config": {
-    "allow-plugins": {
-      "php-http/discovery": true,
-      "composer/installers": true
-    }
-  },
   "extra": {
-    "installer-name": "whitespace-media-proxy",
-    "installer-paths": {
-      "vendor/{$vendor}/{$name}/": [
-        "vendor:wpackagist-plugin",
-        "type:wordpress-muplugin",
-        "type:wordpress-plugin",
-        "type:wordpress-theme"
-      ]
-    }
-  },
-  "autoload": {
-    "psr-4": {
-      "WhitespaceMediaProxy\\": "psr-4/"
-    }
+    "installer-name": "whitespace-media-proxy"
   },
   "scripts": {
     "test": "@php tests/run.php"
   },
-  "repositories": [
-    {
-      "type": "composer",
-      "url": "https://wpackagist.org",
-      "only": [
-        "wpackagist-plugin/*",
-        "wpackagist-theme/*"
-      ]
-    }
-  ],
   "require": {
-    "imangazaliev/didom": "^2.0"
-  },
-  "require-dev": {
-    "wpackagist-plugin/advanced-custom-fields": "^6.3"
+    "php": ">=8.0"
   }
 }
