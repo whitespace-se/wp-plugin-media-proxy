@@ -44,10 +44,19 @@ A WordPress plugin to proxy media files through the production site on demand.
    Credentials are sent only to an exact matching origin. Authenticated sources
    never redirect the browser to the remote file, and remote HTTP redirects are
    rejected without a follow-up request.
-5. Configure your HTTP server or local Valet driver to rewrite missing uploads
-   to `/wp-json/wsmp/v1/media-file?path=<file_path>`. The `<file_path>` must
-   preserve the local request path, including its uploads prefix. The plugin
-   combines the validated relative file path with `WSMP_REMOTE_UPLOADS_PATH`.
+
+Rotate credentials in the environment-specific secret source and regenerate the
+runtime configuration. Remove an origin from `WSMP_REMOTE_BASIC_AUTH` to return
+it to public-source behavior; never keep empty placeholder credentials. Remote
+`401`, `403`, redirects, empty responses, and transport failures return a
+controlled gateway error without publishing a partial local file. Confirm that
+the configured origin is the source's final canonical origin before debugging
+credentials, because authenticated requests intentionally do not follow
+redirects. 5. Configure your HTTP server or local Valet driver to rewrite
+missing uploads to `/wp-json/wsmp/v1/media-file?path=<file_path>`. The
+`<file_path>` must preserve the local request path, including its uploads
+prefix. The plugin combines the validated relative file path with
+`WSMP_REMOTE_UPLOADS_PATH`.
 
 ### Recommended config for Nginx
 
