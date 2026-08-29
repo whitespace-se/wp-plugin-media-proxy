@@ -15,28 +15,6 @@ function wsmp_fetch_remote_file($path) {
     ]);
   }
 
-  $url = wsmp_get_remote() . $remote_path;
-  $remote_response = wp_safe_remote_get($url, [
-    "timeout" => 30,
-  ]);
-  if (is_wp_error($remote_response)) {
-    return new WP_Error(
-      "wsmp_remote_request_failed",
-      "Failed to fetch remote file: " . $remote_response->get_error_message(),
-      ["status" => 502],
-    );
-  }
-
-  $response_code = wp_remote_retrieve_response_code($remote_response);
-  $response_body = wp_remote_retrieve_body($remote_response);
-  if ($response_code !== 200 || $response_body === "") {
-    return new WP_Error(
-      "wsmp_remote_response_failed",
-      "Failed to fetch remote file: HTTP " . $response_code,
-      ["status" => $response_code === 404 ? 404 : 502],
-    );
-  }
-
   $folder = dirname($local_path);
   if (!wp_mkdir_p($folder)) {
     return new WP_Error(
@@ -47,23 +25,73 @@ function wsmp_fetch_remote_file($path) {
   }
 
   $temporary_path = tempnam($folder, ".wsmp-");
-  if (
-    $temporary_path === false ||
-    file_put_contents($temporary_path, $response_body, LOCK_EX) === false
-  ) {
-    if (is_string($temporary_path) && file_exists($temporary_path)) {
-      unlink($temporary_path);
-    }
+  if ($temporary_path === false) {
     return new WP_Error(
       "wsmp_local_write_failed",
-      "Failed to write local media file",
+      "Failed to create temporary media file",
       ["status" => 500],
     );
   }
 
-  chmod($temporary_path, defined("FS_CHMOD_FILE") ? FS_CHMOD_FILE : 0644);
-  if (!rename($temporary_path, $local_path)) {
-    unlink($temporary_path);
+  $remote = wsmp_get_remote();
+  $url = $remote . $remote_path;
+  $request_options = [
+    "filename" => $temporary_path,
+    "redirection" => 0,
+    "stream" => true,
+    "timeout" => 30,
+  ];
+  $basic_auth = wsmp_get_remote_basic_auth($remote);
+  if ($basic_auth !== null) {
+    $request_options["headers"] = [
+      "Authorization" =>
+        "Basic " .
+        base64_encode($basic_auth["username"] . ":" . $basic_auth["password"]),
+    ];
+  }
+
+  $remote_response = wp_safe_remote_get($url, $request_options);
+  if (is_wp_error($remote_response)) {
+    wsmp_remove_temporary_file($temporary_path);
+    return new WP_Error(
+      "wsmp_remote_request_failed",
+      "Failed to fetch remote file",
+      ["status" => 502],
+    );
+  }
+
+  $response_code = wp_remote_retrieve_response_code($remote_response);
+  if ($response_code !== 200) {
+    wsmp_remove_temporary_file($temporary_path);
+    return new WP_Error(
+      "wsmp_remote_response_failed",
+      "Failed to fetch remote file: HTTP " . $response_code,
+      ["status" => $response_code === 404 ? 404 : 502],
+    );
+  }
+
+  clearstatcache(true, $temporary_path);
+  if (!is_file($temporary_path) || filesize($temporary_path) === 0) {
+    wsmp_remove_temporary_file($temporary_path);
+    return new WP_Error(
+      "wsmp_remote_response_failed",
+      "Failed to fetch remote file: empty response",
+      ["status" => 502],
+    );
+  }
+
+  if (
+    !@chmod($temporary_path, defined("FS_CHMOD_FILE") ? FS_CHMOD_FILE : 0644)
+  ) {
+    wsmp_remove_temporary_file($temporary_path);
+    return new WP_Error(
+      "wsmp_local_write_failed",
+      "Failed to set local media file permissions",
+      ["status" => 500],
+    );
+  }
+  if (!@rename($temporary_path, $local_path)) {
+    wsmp_remove_temporary_file($temporary_path);
     return new WP_Error(
       "wsmp_local_publish_failed",
       "Failed to publish local media file",
@@ -72,6 +100,12 @@ function wsmp_fetch_remote_file($path) {
   }
 
   return ["local_path" => $local_path, "remote_url" => $url];
+}
+
+function wsmp_remove_temporary_file($path) {
+  if (is_string($path) && is_file($path)) {
+    @unlink($path);
+  }
 }
 
 function wsmp_get_local_media_url($path) {

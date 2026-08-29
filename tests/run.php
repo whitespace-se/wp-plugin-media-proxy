@@ -46,6 +46,15 @@ $wsmp_test_remote_url = null;
 $wsmp_test_remote_origin = "https://www.hoor.se";
 $wsmp_test_remote_uploads_path = "/app/uploads";
 $wsmp_test_redirect = null;
+$wsmp_test_request_count = 0;
+$wsmp_test_request_options = null;
+
+define("WSMP_REMOTE_BASIC_AUTH", [
+  "https://nora.prod.municipio.w8e.se" => [
+    "username" => "remote-user",
+    "password" => "remote-password",
+  ],
+]);
 
 function add_action() {
 }
@@ -97,9 +106,21 @@ function wp_mkdir_p($path) {
   return true;
 }
 
-function wp_safe_remote_get($url) {
-  global $wsmp_test_remote_url, $wsmp_test_response;
+function wp_safe_remote_get($url, $options = []) {
+  global $wsmp_test_remote_url,
+    $wsmp_test_response,
+    $wsmp_test_request_count,
+    $wsmp_test_request_options;
   $wsmp_test_remote_url = $url;
+  $wsmp_test_request_count++;
+  $wsmp_test_request_options = $options;
+  if (
+    !($wsmp_test_response instanceof WP_Error) &&
+    isset($options["filename"]) &&
+    array_key_exists("body", $wsmp_test_response)
+  ) {
+    file_put_contents($options["filename"], $wsmp_test_response["body"]);
+  }
   return $wsmp_test_response;
 }
 
@@ -253,6 +274,26 @@ wsmp_assert_same(
   wsmp_urls_share_origin("https://www.hoor.se", "https://hoor1.dev.m7o.w8e.se"),
   "Different hosts do not trigger the redirect-loop guard",
 );
+wsmp_assert_same(
+  "https://nora.prod.municipio.w8e.se",
+  wsmp_get_https_origin("https://NORA.prod.municipio.w8e.se/path"),
+  "HTTPS origins are canonicalized without their path",
+);
+wsmp_assert_same(
+  null,
+  wsmp_get_https_origin("https://user:password@nora.prod.municipio.w8e.se"),
+  "Origins containing credentials are rejected",
+);
+wsmp_assert_same(
+  ["username" => "remote-user", "password" => "remote-password"],
+  wsmp_get_remote_basic_auth("https://nora.prod.municipio.w8e.se"),
+  "Basic Auth credentials require an exact configured HTTPS origin",
+);
+wsmp_assert_same(
+  null,
+  wsmp_get_remote_basic_auth("https://sub.nora.prod.municipio.w8e.se"),
+  "Basic Auth credentials are not shared with subdomains",
+);
 $wsmp_test_remote_origin = "https://hoor1.dev.m7o.w8e.se";
 $same_origin_response = wsmp_endpoint(new WP_REST_Request());
 wsmp_assert_same(
@@ -271,6 +312,13 @@ wsmp_assert_same(
   wsmp_get_strategy_for_extension("pdf"),
   "Documents keep the redirect strategy",
 );
+$wsmp_test_remote_origin = "https://nora.prod.municipio.w8e.se";
+wsmp_assert_same(
+  "fetch",
+  wsmp_get_strategy_for_extension("pdf"),
+  "Authenticated sources force server-side fetches for redirect extensions",
+);
+$wsmp_test_remote_origin = "https://www.hoor.se";
 
 $wsmp_test_upload_dir =
   sys_get_temp_dir() . "/wsmp-tests-" . bin2hex(random_bytes(6));
@@ -357,6 +405,37 @@ wsmp_assert_same(
   "The fetch request stays below the configured remote uploads path",
 );
 wsmp_assert_same(
+  0,
+  $wsmp_test_request_options["redirection"] ?? null,
+  "Fetch requests disable remote redirects",
+);
+wsmp_assert_same(
+  true,
+  $wsmp_test_request_options["stream"] ?? null,
+  "Fetch requests stream to disk",
+);
+wsmp_assert_same(
+  false,
+  isset($wsmp_test_request_options["headers"]["Authorization"]),
+  "Unauthenticated origins do not receive an Authorization header",
+);
+
+$wsmp_test_remote_origin = "https://nora.prod.municipio.w8e.se";
+$authenticated_file = wsmp_fetch_remote_file(
+  "/wp-content/uploads/2026/07/authenticated.pdf",
+);
+wsmp_assert_same(
+  false,
+  is_wp_error($authenticated_file),
+  "An authenticated source can be fetched server-side",
+);
+wsmp_assert_same(
+  "Basic " . base64_encode("remote-user:remote-password"),
+  $wsmp_test_request_options["headers"]["Authorization"] ?? null,
+  "The exact authenticated origin receives its Basic Auth header",
+);
+$wsmp_test_remote_origin = "https://www.hoor.se";
+wsmp_assert_same(
   "https://hoor1.dev.m7o.w8e.se/wp-content/uploads/2026/07/fetched-image.jpg",
   wsmp_get_local_media_url("/wp-content/uploads/2026/07/fetched-image.jpg"),
   "A fetched file is redirected to its normal local static URL",
@@ -412,6 +491,65 @@ wsmp_assert_same(
   file_exists($wsmp_test_upload_dir . "/2026/07/missing-image.jpg"),
   "A missing remote file is not created locally",
 );
+
+foreach ([401, 403, 302] as $remote_status) {
+  $wsmp_test_response = [
+    "response" => ["code" => $remote_status],
+    "body" => "remote response",
+  ];
+  $request_count_before_failure = $wsmp_test_request_count;
+  $failed_response = wsmp_fetch_remote_file(
+    "/wp-content/uploads/2026/07/failed-{$remote_status}.jpg",
+  );
+  wsmp_assert_same(
+    ["status" => 502],
+    $failed_response->get_error_data(),
+    "Remote HTTP {$remote_status} produces a controlled gateway error",
+  );
+  wsmp_assert_same(
+    $request_count_before_failure + 1,
+    $wsmp_test_request_count,
+    "Remote HTTP {$remote_status} never causes a follow-up request",
+  );
+  wsmp_assert_same(
+    [],
+    glob($wsmp_test_upload_dir . "/2026/07/.wsmp-*"),
+    "Remote HTTP {$remote_status} cleans up its temporary file",
+  );
+}
+
+$wsmp_test_response = ["response" => ["code" => 200], "body" => ""];
+$empty_response = wsmp_fetch_remote_file(
+  "/wp-content/uploads/2026/07/empty.jpg",
+);
+wsmp_assert_same(
+  ["status" => 502],
+  $empty_response->get_error_data(),
+  "An empty remote response produces a controlled gateway error",
+);
+wsmp_assert_same(
+  [],
+  glob($wsmp_test_upload_dir . "/2026/07/.wsmp-*"),
+  "An empty response cleans up its temporary file",
+);
+
+$wsmp_test_response = ["response" => ["code" => 200], "body" => "asset"];
+$publish_failure_path = $wsmp_test_upload_dir . "/2026/07/publish-failure.jpg";
+mkdir($publish_failure_path);
+$publish_failure = wsmp_fetch_remote_file(
+  "/wp-content/uploads/2026/07/publish-failure.jpg",
+);
+wsmp_assert_same(
+  ["status" => 500],
+  $publish_failure->get_error_data(),
+  "A local publish failure produces a controlled server error",
+);
+wsmp_assert_same(
+  [],
+  glob($wsmp_test_upload_dir . "/2026/07/.wsmp-*"),
+  "A local publish failure cleans up its temporary file",
+);
+rmdir($publish_failure_path);
 
 $wsmp_test_response = new WP_Error("http_request_failed", "Timed out");
 $failed_request = wsmp_fetch_remote_file(

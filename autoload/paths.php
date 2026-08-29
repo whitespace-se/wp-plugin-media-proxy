@@ -138,3 +138,70 @@ function wsmp_urls_share_origin($first_url, $second_url) {
     strtolower($first["host"]) === strtolower($second["host"]) &&
     $default_port($first) === $default_port($second);
 }
+
+/**
+ * Returns the canonical HTTPS origin used for credential lookup.
+ *
+ * Credentials are deliberately matched on scheme, host, and effective port;
+ * a path-prefix or parent-domain match could otherwise disclose them to a
+ * different endpoint.
+ */
+function wsmp_get_https_origin($url) {
+  $parts = parse_url($url);
+  if (
+    !is_array($parts) ||
+    strtolower($parts["scheme"] ?? "") !== "https" ||
+    empty($parts["host"]) ||
+    isset($parts["user"]) ||
+    isset($parts["pass"])
+  ) {
+    return null;
+  }
+
+  $origin = "https://" . strtolower($parts["host"]);
+  if (isset($parts["port"]) && (int) $parts["port"] !== 443) {
+    $origin .= ":" . (int) $parts["port"];
+  }
+
+  return $origin;
+}
+
+/**
+ * Resolves Basic Auth only from the process-level secret map.
+ *
+ * The map is intentionally unavailable through WordPress options and admin UI
+ * so credentials cannot enter database exports or rendered settings pages.
+ */
+function wsmp_get_remote_basic_auth($remote_url) {
+  if (!defined("WSMP_REMOTE_BASIC_AUTH")) {
+    return null;
+  }
+
+  $credentials_by_origin = constant("WSMP_REMOTE_BASIC_AUTH");
+  $origin = wsmp_get_https_origin($remote_url);
+  if (!is_array($credentials_by_origin) || $origin === null) {
+    return null;
+  }
+
+  foreach ($credentials_by_origin as $configured_origin => $credentials) {
+    if (
+      !is_string($configured_origin) ||
+      wsmp_get_https_origin($configured_origin) !== $origin ||
+      rtrim($configured_origin, "/") !== $origin ||
+      !is_array($credentials) ||
+      !is_string($credentials["username"] ?? null) ||
+      !is_string($credentials["password"] ?? null) ||
+      $credentials["username"] === "" ||
+      $credentials["password"] === ""
+    ) {
+      continue;
+    }
+
+    return [
+      "username" => $credentials["username"],
+      "password" => $credentials["password"],
+    ];
+  }
+
+  return null;
+}

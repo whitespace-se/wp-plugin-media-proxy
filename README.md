@@ -31,7 +31,20 @@ A WordPress plugin to proxy media files through the production site on demand.
    redirect loops. `WSMP_REMOTE_UPLOADS_PATH` is the public uploads path at the
    remote origin and defaults to `/app/uploads`. These constants apply to the
    whole WordPress process.
-4. Configure your HTTP server or local Valet driver to rewrite missing uploads
+4. If the source requires HTTP Basic Auth, define an exact HTTPS-origin map in
+   environment-specific configuration:
+   ```php
+   define('WSMP_REMOTE_BASIC_AUTH', [
+     'https://production.example.com' => [
+       'username' => getenv('WSMP_REMOTE_USERNAME'),
+       'password' => getenv('WSMP_REMOTE_PASSWORD'),
+     ],
+   ]);
+   ```
+   Credentials are sent only to an exact matching origin. Authenticated sources
+   never redirect the browser to the remote file, and remote HTTP redirects are
+   rejected without a follow-up request.
+5. Configure your HTTP server or local Valet driver to rewrite missing uploads
    to `/wp-json/wsmp/v1/media-file?path=<file_path>`. The `<file_path>` must
    preserve the local request path, including its uploads prefix. The plugin
    combines the validated relative file path with `WSMP_REMOTE_UPLOADS_PATH`.
@@ -100,7 +113,7 @@ cutover.
 
 ## Compatibility
 
-Version `1.0.0` is verified in Municipio Cloud reference environments using PHP
+Version `1.1.0` is verified in Municipio Cloud reference environments using PHP
 8.3 and WordPress 6.x. The package requires PHP 8.0 or newer. No broader
 WordPress compatibility range is claimed without corresponding test evidence.
 

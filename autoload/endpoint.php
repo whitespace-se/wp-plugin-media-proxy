@@ -32,6 +32,12 @@ function wsmp_get_extension_strategies() {
 }
 
 function wsmp_get_strategy_for_extension($ext) {
+  if (wsmp_get_remote_basic_auth(wsmp_get_remote()) !== null) {
+    // Redirecting would expose an unauthenticated URL to the browser. Fetching
+    // also keeps credentials entirely inside the server-side request.
+    return "fetch";
+  }
+
   $strategies = wsmp_get_extension_strategies();
   return $strategies[strtolower($ext)] ?? wsmp_get_default_strategy();
 }
